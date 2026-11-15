@@ -69,7 +69,7 @@ td b{font-size:15px}
 </section>
 
 <section id="app" hidden>
-  <div class="bar"><div id="tabs"></div><button class="ghost" id="reset">Reset</button></div>
+  <div class="bar"><div id="tabs"></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="ghost" id="export">Export</button><button class="ghost" id="importBtn">Import</button><button class="ghost" id="reset">Reset</button><input id="importFile" type="file" accept="application/json,.json" hidden></div></div>
   <div id="view"></div>
 </section>
 </main>
@@ -79,6 +79,42 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cmp=(a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf||a.t.localeCompare(b.t);
 let S=null,tab='jadwal';
+const STORAGE_KEY='mwleague_state_v1';
+function saveState(){
+  try{
+    if(S) localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,state:S,tab}));
+    else localStorage.removeItem(STORAGE_KEY);
+  }catch(err){console.warn('MWLeague: gagal menyimpan data',err);alert('Penyimpanan browser penuh atau tidak tersedia. Silakan Export data sebagai cadangan.');}
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw)return false;
+    const data=JSON.parse(raw);
+    if(data?.version!==1||!data.state||!Array.isArray(data.state.names)||!Array.isArray(data.state.groups))return false;
+    S=data.state;tab=data.tab||'jadwal';return true;
+  }catch(err){console.warn('MWLeague: data tersimpan tidak dapat dibaca',err);return false;}
+}
+function exportData(){
+  if(!S)return alert('Belum ada kompetisi untuk diekspor.');
+  const blob=new Blob([JSON.stringify({app:'MWLeague',version:1,state:S,tab,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='mwleague-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);
+}
+function importData(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result),state=data.state||data;
+      if(!state||!Array.isArray(state.names)||!Array.isArray(state.groups)||!['league','cup'].includes(state.mode))throw new Error('Format file tidak sesuai.');
+      if(state.mode==='cup'&&state.fmt==='knock'&&!state.ko)throw new Error('Data knockout tidak lengkap.');
+      if(!confirm('Impor akan mengganti kompetisi yang sedang terbuka. Lanjutkan?'))return;
+      S=state;tab=data.tab||((S.mode==='cup'&&S.fmt==='knock')?'ko':'jadwal');saveState();render();
+      alert('Data MWLeague berhasil diimpor.');
+    }catch(err){alert('Gagal mengimpor: '+err.message);}
+  };
+  reader.readAsText(file);
+}
 
 /* ---------- setup ---------- */
 function renderNames(){
@@ -170,7 +206,10 @@ $('#go').onclick=()=>{
   }
   render();
 };
-$('#reset').onclick=()=>{if(confirm('Hapus kompetisi ini dan mulai lagi?')){S=null;render()}};
+$('#reset').onclick=()=>{if(confirm('Hapus kompetisi ini dan mulai lagi?')){S=null;localStorage.removeItem(STORAGE_KEY);render()}};
+$('#export').onclick=exportData;
+$('#importBtn').onclick=()=>$('#importFile').click();
+$('#importFile').onchange=e=>{const file=e.target.files[0];if(file)importData(file);e.target.value=''};
 
 /* ---------- tampilan ---------- */
 const sc=m=>m.sh===''||m.sa===''?'vs':`${m.sh} - ${m.sa}`;
@@ -220,12 +259,12 @@ function render(){
 document.addEventListener('click',e=>{
   const t=e.target;
   if(t.dataset.t){tab=t.dataset.t;render()}
-  if(t.id==='mkko'){S.ko=mkKO(qualify().list.map(x=>x.t));render()}
+  if(t.id==='mkko'){S.ko=mkKO(qualify().list.map(x=>x.t));render();saveState()}
 });
 document.addEventListener('change',e=>{
   const t=e.target,d=t.dataset,v=t.value===''?'':String(Math.max(0,parseInt(t.value)||0));
   if(d.m){const[g,r,m,s]=d.m.split(',');S.groups[g].rounds[r].m[m][s]=v}
-  else if(d.k){const[r,k,f]=d.k.split(',');S.ko.rounds[r][k][f]=f==='w'?t.value:v;render()}
+  else if(d.k){const[r,k,f]=d.k.split(',');S.ko.rounds[r][k][f]=f==='w'?t.value:v;render()}\n  if(d.m||d.k)saveState();
 });
 
 renderNames();opts();
