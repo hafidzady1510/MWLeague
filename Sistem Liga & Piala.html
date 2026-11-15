@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sistem Liga &amp; Piala</title>
+<style>
+:root{--bg:#eef1ec;--card:#fff;--tx:#14201a;--mu:#62706a;--ac:#0b6b3a;--on:#fff;--soft:#dcefe3;--bd:#d3dad4;--warn:#a4571a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1511;--card:#17211b;--tx:#e8f0ea;--mu:#8fa196;--ac:#46d17f;--on:#07130c;--soft:#1c3326;--bd:#2a3a30;--warn:#e0a060}}
+:root[data-theme="dark"]{--bg:#0e1511;--card:#17211b;--tx:#e8f0ea;--mu:#8fa196;--ac:#46d17f;--on:#07130c;--soft:#1c3326;--bd:#2a3a30;--warn:#e0a060}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 "Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px 14px 40px}
+h1{font:800 26px/1.1 "Arial Narrow","Franklin Gothic Medium",Impact,sans-serif;letter-spacing:.5px;margin:4px 0 14px}
+h3{font-size:16px;margin:20px 0 8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px}
+label{display:block;font-weight:600;margin:12px 0 4px}
+input,select,button{font:inherit;color:var(--tx)}
+input[type=text],input[type=number],select{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+.chk{display:flex;gap:8px;align-items:center;font-weight:400;margin:12px 0 0}
+#names{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{background:var(--ac);color:var(--on);border:0;border-radius:8px;padding:11px 16px;font-weight:700;margin-top:16px;cursor:pointer}
+button:disabled{opacity:.45}
+button.ghost{background:transparent;color:var(--ac);border:1px solid var(--ac);margin:0;padding:7px 12px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.err{color:var(--warn);margin-top:10px}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+#tabs{display:flex;gap:6px;overflow-x:auto}
+#tabs button{margin:0;background:var(--card);color:var(--tx);border:1px solid var(--bd);padding:8px 14px;white-space:nowrap}
+#tabs button.on{background:var(--ac);color:var(--on);border-color:var(--ac)}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;background:var(--card);font-variant-numeric:tabular-nums}
+th,td{padding:7px 6px;text-align:center;border-bottom:1px solid var(--bd)}
+th{font-size:12px;color:var(--mu)}
+.l{text-align:left}.r{text-align:right}
+tr.q td{background:var(--soft)}
+tr.q td:first-child{box-shadow:inset 3px 0 var(--ac)}
+td b{font-size:15px}
+.md{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.row{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:5px 0}
+.row .l,.row .r{overflow:hidden;text-overflow:ellipsis}
+.mid{font-weight:700;min-width:54px;text-align:center}
+.row input{width:46px;text-align:center;padding:7px 2px}
+.rest{color:var(--mu);font-style:italic;padding-top:4px}
+.mu{color:var(--mu)}
+.champ{background:var(--ac);color:var(--on);border-radius:10px;padding:14px;font-weight:800;font-size:18px;text-align:center;margin-bottom:6px}
+.pen{margin-top:6px}
+</style>
+</head>
+<body>
+<main>
+<h1>Sistem Liga &amp; Piala</h1>
+
+<section id="setup" class="card">
+  <label for="mode">Jenis kompetisi</label>
+  <select id="mode"><option value="league">League</option><option value="cup">Cup</option></select>
+  <div id="cupOpt" hidden>
+    <label for="fmt">Format Cup</label>
+    <select id="fmt"><option value="group">Group</option><option value="knock">Knockout</option></select>
+    <label class="chk"><input type="checkbox" id="rnd" checked> Acak undian</label>
+  </div>
+  <label class="chk" id="dblW"><input type="checkbox" id="dbl"> Kandang dan tandang (2 putaran)</label>
+  <label for="n">Jumlah peserta</label>
+  <input type="number" id="n" min="2" max="64" value="4" inputmode="numeric">
+  <label>Nama tim</label>
+  <div id="names"></div>
+  <div class="err" id="err"></div>
+  <button id="go">Buat kompetisi</button>
+</section>
+
+<section id="app" hidden>
+  <div class="bar"><div id="tabs"></div><button class="ghost" id="reset">Reset</button></div>
+  <div id="view"></div>
+</section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cmp=(a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf||a.t.localeCompare(b.t);
+let S=null,tab='jadwal';
+
+/* ---------- setup ---------- */
+function renderNames(){
+  const n=Math.min(64,Math.max(0,parseInt($('#n').value)||0));
+  const old=[...document.querySelectorAll('.nm')].map(e=>e.value);
+  $('#names').innerHTML=Array.from({length:n},(_,i)=>`<input type="text" class="nm" maxlength="24" placeholder="Tim ${i+1}" value="${esc(old[i]||'')}">`).join('');
+}
+function opts(){
+  const cup=$('#mode').value==='cup', ko=cup&&$('#fmt').value==='knock';
+  $('#cupOpt').hidden=!cup; $('#dblW').hidden=ko;
+}
+$('#n').oninput=renderNames; $('#mode').onchange=opts; $('#fmt').onchange=opts;
+
+/* ---------- logika ---------- */
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const pow=n=>{let p=1;while(p<n)p*=2;return p};
+function sizes(n){ // 4 diutamakan, lalu 3, lalu 5, sisanya dibagi rata 3-4
+  for(const k of [4,3,5]) if(n%k===0) return Array(n/k).fill(k);
+  const g=Math.ceil(n/4),b=Math.floor(n/g),x=n-b*g;
+  return Array.from({length:g},(_,i)=>b+(i<x?1:0));
+}
+function rr(t,dbl){ // metode lingkaran; peserta ganjil = ada Istirahat
+  const a=[...t]; if(a.length%2)a.push(null);
+  const n=a.length,R=[];
+  for(let r=0;r<n-1;r++){
+    const m=[];let rest=null;
+    for(let i=0;i<n/2;i++){
+      let h=a[i],b=a[n-1-i];
+      if(!h||!b){rest=h||b;continue}
+      if(r%2)[h,b]=[b,h];
+      m.push({h,a:b,sh:'',sa:''});
+    }
+    R.push({m,rest}); a.splice(1,0,a.pop());
+  }
+  if(dbl){const c=R.map(x=>({rest:x.rest,m:x.m.map(y=>({h:y.a,a:y.h,sh:'',sa:''}))}));R.push(...c)}
+  return R;
+}
+const mkGroup=(name,teams,dbl)=>({name,teams,rounds:rr(teams,dbl)});
+function table(g){
+  const T={};g.teams.forEach(t=>T[t]={t,p:0,w:0,d:0,l:0,gf:0,ga:0});
+  g.rounds.forEach(r=>r.m.forEach(m=>{
+    if(m.sh===''||m.sa==='')return;
+    const x=T[m.h],y=T[m.a],a=+m.sh,b=+m.sa;
+    x.p++;y.p++;x.gf+=a;x.ga+=b;y.gf+=b;y.ga+=a;
+    if(a>b){x.w++;y.l++}else if(a<b){y.w++;x.l++}else{x.d++;y.d++}
+  }));
+  return Object.values(T).map(x=>({...x,gd:x.gf-x.ga,pts:x.w*3+x.d})).sort(cmp);
+}
+function qualify(){ // 2 teratas tiap grup + peringkat 3 terbaik untuk mengisi bracket
+  const tb=S.groups.map(table),g=tb.length;
+  const win=tb.map(t=>t[0]).sort(cmp),run=tb.map(t=>t[1]).sort(cmp),th=tb.map(t=>t[2]).filter(Boolean).sort(cmp);
+  const q=2*g;let P=pow(q),need=P-q,list=[...win,...run],note='';
+  if(need===0) note='';
+  else if(need<=th.length){list.push(...th.slice(0,need));note=`${need} peringkat 3 terbaik ikut lolos agar bracket penuh (${P} tim).`}
+  else{P/=2;list=list.slice(0,P);note=`Bracket ${P} tim: ${q-P} runner-up terlemah tidak lolos.`}
+  return{list,P,note};
+}
+const ord=p=>{let a=[0];while(a.length<p){const n=a.length*2;a=a.flatMap(x=>[x,n-1-x])}return a};
+function mkKO(teams){ // teams urut seed; bye untuk seed teratas
+  const P=pow(teams.length),slots=ord(P).map(i=>teams[i]||null),rounds=[];
+  for(let p=P/2;p>=1;p/=2)rounds.push(Array.from({length:p},()=>({sa:'',sb:'',w:''})));
+  return{P,slots,rounds};
+}
+function side(ko,r,k,s){return r===0?ko.slots[2*k+s]:win(ko,r-1,2*k+s)}
+function win(ko,r,k){
+  const a=side(ko,r,k,0),b=side(ko,r,k,1),m=ko.rounds[r][k];
+  if(a===null)return b; if(b===null)return a;
+  if(!a||!b||m.sa===''||m.sb==='')return undefined;
+  if(+m.sa>+m.sb)return a; if(+m.sa<+m.sb)return b;
+  return m.w==='a'?a:m.w==='b'?b:undefined;
+}
+
+/* ---------- mulai ---------- */
+$('#go').onclick=()=>{
+  const mode=$('#mode').value,fmt=$('#fmt').value,dbl=$('#dbl').checked,rnd=$('#rnd').checked;
+  const err=m=>$('#err').textContent=m;
+  let names=[...document.querySelectorAll('.nm')].map((e,i)=>e.value.trim()||'Tim '+(i+1));
+  const n=names.length;
+  if(n<2)return err('Minimal 2 peserta.');
+  if(new Set(names.map(x=>x.toLowerCase())).size<n)return err('Nama tim tidak boleh sama.');
+  if(mode==='cup'&&fmt==='group'&&n<6)return err('Cup format Group minimal 6 tim.');
+  err('');
+  S={mode,fmt,names,groups:[],ko:null};tab=mode==='cup'&&fmt==='knock'?'ko':'jadwal';
+  if(mode==='league')S.groups=[mkGroup('Klasemen Liga',names,dbl)];
+  else{
+    const t=rnd?shuffle(names):names;
+    if(fmt==='group'){let i=0;S.groups=sizes(n).map((s,gi)=>mkGroup('Grup '+String.fromCharCode(65+gi),t.slice(i,i+=s),dbl))}
+    else S.ko=mkKO(t);
+  }
+  render();
+};
+$('#reset').onclick=()=>{if(confirm('Hapus kompetisi ini dan mulai lagi?')){S=null;render()}};
+
+/* ---------- tampilan ---------- */
+const sc=m=>m.sh===''||m.sa===''?'vs':`${m.sh} - ${m.sa}`;
+const jadwal=g=>g.rounds.map((r,i)=>`<div class="md"><b>Pekan ${i+1}</b>`+r.m.map(m=>`<div class="row"><span class="l">${esc(m.h)}</span><span class="mid">${sc(m)}</span><span class="r">${esc(m.a)}</span></div>`).join('')+(r.rest?`<div class="rest">Istirahat: ${esc(r.rest)}</div>`:'')+'</div>').join('');
+const hasil=(g,gi)=>g.rounds.map((r,ri)=>`<div class="md"><b>Pekan ${ri+1}</b>`+r.m.map((m,mi)=>`<div class="row"><span class="l">${esc(m.h)}</span><span><input type="number" min="0" inputmode="numeric" aria-label="Skor ${esc(m.h)}" data-m="${gi},${ri},${mi},sh" value="${m.sh}"> : <input type="number" min="0" inputmode="numeric" aria-label="Skor ${esc(m.a)}" data-m="${gi},${ri},${mi},sa" value="${m.sa}"></span><span class="r">${esc(m.a)}</span></div>`).join('')+'</div>').join('');
+const klas=g=>{const cup=S.mode==='cup';return`<div class="sc"><table><tr><th>#<th class="l">Tim<th>Main<th>W<th>D<th>L<th>Goal<th>Conc<th>Diff<th>Poin</tr>`+table(g).map((r,i)=>`<tr${cup&&i<2?' class="q"':''}><td>${i+1}<td class="l">${esc(r.t)}<td>${r.p}<td>${r.w}<td>${r.d}<td>${r.l}<td>${r.gf}<td>${r.ga}<td>${r.gd>0?'+'+r.gd:r.gd}<td><b>${r.pts}</b>`).join('')+`</table></div>`+(cup?'':'')};
+
+function koView(){
+  if(!S.ko){
+    const done=S.groups.every(g=>g.rounds.every(r=>r.m.every(m=>m.sh!==''&&m.sa!=='')));
+    const q=qualify();
+    return`<h3>${done?'Tim yang lolos':'Lolos sementara'}</h3><div class="card">${q.list.map((x,i)=>`${i+1}. ${esc(x.t)}`).join('<br>')}${q.note?`<p class="mu">${q.note}</p>`:''}</div>`+
+      `<button id="mkko" ${done?'':'disabled'}>Buat babak knockout</button>`+(done?'':'<p class="mu">Selesaikan semua pertandingan grup dulu.</p>');
+  }
+  const ko=S.ko;let h='';
+  ko.rounds.forEach((rd,r)=>{
+    const n=ko.P/2**r;
+    h+=`<h3>${n===2?'Final':n===4?'Semifinal':n===8?'Perempat final':'Babak '+n+' besar'}</h3>`;
+    rd.forEach((m,k)=>{
+      const a=side(ko,r,k,0),b=side(ko,r,k,1);h+='<div class="md">';
+      if(a===null||b===null)h+=`<div class="rest">${esc(a||b)} lolos otomatis (bye)</div>`;
+      else if(!a||!b)h+=`<div class="rest">${a?esc(a):'Menunggu'} vs ${b?esc(b):'Menunggu'}</div>`;
+      else{
+        h+=`<div class="row"><span class="l">${esc(a)}</span><span><input type="number" min="0" inputmode="numeric" data-k="${r},${k},sa" value="${m.sa}"> : <input type="number" min="0" inputmode="numeric" data-k="${r},${k},sb" value="${m.sb}"></span><span class="r">${esc(b)}</span></div>`;
+        if(m.sa!==''&&m.sa===m.sb)h+=`<select class="pen" data-k="${r},${k},w"><option value="">Pemenang adu penalti…</option><option value="a"${m.w==='a'?' selected':''}>${esc(a)}</option><option value="b"${m.w==='b'?' selected':''}>${esc(b)}</option></select>`;
+      }
+      h+='</div>';
+    });
+  });
+  const c=win(ko,ko.rounds.length-1,0);
+  return(c?`<div class="champ">Juara: ${esc(c)}</div>`:'')+h;
+}
+
+function render(){
+  $('#setup').hidden=!!S;$('#app').hidden=!S;
+  if(!S)return;
+  const ko=S.mode==='cup'&&S.fmt==='knock';
+  const tabs=ko?[['ko','Knockout']]:[['jadwal','Jadwal'],['hasil','Hasil'],['klas','Klasemen'],...(S.mode==='cup'?[['ko','Knockout']]:[])];
+  if(!tabs.some(t=>t[0]===tab))tab=tabs[0][0];
+  $('#tabs').innerHTML=tabs.map(t=>`<button data-t="${t[0]}" class="${t[0]===tab?'on':''}">${t[1]}</button>`).join('');
+  let h;
+  if(tab==='ko')h=koView();
+  else h=S.groups.map((g,gi)=>`<h3>${esc(g.name)}</h3>`+(tab==='jadwal'?jadwal(g):tab==='hasil'?hasil(g,gi):klas(g))).join('')+(tab==='klas'&&S.mode==='cup'?'<p class="mu">Baris hijau: 2 teratas tiap grup lolos otomatis ke knockout.</p>':'');
+  $('#view').innerHTML=h;
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target;
+  if(t.dataset.t){tab=t.dataset.t;render()}
+  if(t.id==='mkko'){S.ko=mkKO(qualify().list.map(x=>x.t));render()}
+});
+document.addEventListener('change',e=>{
+  const t=e.target,d=t.dataset,v=t.value===''?'':String(Math.max(0,parseInt(t.value)||0));
+  if(d.m){const[g,r,m,s]=d.m.split(',');S.groups[g].rounds[r].m[m][s]=v}
+  else if(d.k){const[r,k,f]=d.k.split(',');S.ko.rounds[r][k][f]=f==='w'?t.value:v;render()}
+});
+
+renderNames();opts();
+</script>
+</body>
+</html>
