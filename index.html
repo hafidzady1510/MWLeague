@@ -204,7 +204,7 @@ $('#go').onclick=()=>{
     if(fmt==='group'){let i=0;S.groups=sizes(n).map((s,gi)=>mkGroup('Grup '+String.fromCharCode(65+gi),t.slice(i,i+=s),dbl))}
     else S.ko=mkKO(t);
   }
-  render();
+  render();saveState();
 };
 $('#reset').onclick=()=>{if(confirm('Hapus kompetisi ini dan mulai lagi?')){S=null;localStorage.removeItem(STORAGE_KEY);render()}};
 $('#export').onclick=exportData;
@@ -264,10 +264,13 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{
   const t=e.target,d=t.dataset,v=t.value===''?'':String(Math.max(0,parseInt(t.value)||0));
   if(d.m){const[g,r,m,s]=d.m.split(',');S.groups[g].rounds[r].m[m][s]=v}
-  else if(d.k){const[r,k,f]=d.k.split(',');S.ko.rounds[r][k][f]=f==='w'?t.value:v;render()}\n  if(d.m||d.k)saveState();
+  else if(d.k){const[r,k,f]=d.k.split(',');S.ko.rounds[r][k][f]=f==='w'?t.value:v;render()}
+  if(d.m||d.k)saveState();
 });
 
 renderNames();opts();
+loadState();
+render();
 </script>
 </body>
 </html>
